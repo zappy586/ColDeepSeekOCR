@@ -3,7 +3,7 @@ import re
 from transformers.conversion_mapping import get_checkpoint_conversion_mapping
 
 from colpali_engine.models.gemma3.colgemma3.modeling_colgemma import ColGemma3
-from colpali_engine.models.modernvbert.colvbert.modeling_colmodernvbert import ColModernVBert
+from colpali_engine.models.modernvbert.colmodernvbert.modeling_colmodernvbert import ColModernVBert
 from colpali_engine.models.paligemma.bipali.modeling_bipali import BiPali
 from colpali_engine.models.paligemma.colpali.modeling_colpali import ColPali
 from colpali_engine.models.qwen2.colqwen2.modeling_colqwen2 import ColQwen2

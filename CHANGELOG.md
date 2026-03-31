@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Add ColQwen3.5 and BiQwen3.5 support (model + processor). Pretrained checkpoint: [athrael-soju/colqwen3.5-4.5B-v3](https://huggingface.co/athrael-soju/colqwen3.5-4.5B-v3).
 
+### Changed
+
+- Bump minimum supported `transformers` version to `5.3.0`.
+
+### Fixed
+
+- Fix ModernVBERT wrappers to rely on the upstream Hugging Face implementation and keep checkpoint key conversion mapping working with current Transformers v5 loading.
+
 ## [0.3.14] - 2026-02-24
 
 ### Added

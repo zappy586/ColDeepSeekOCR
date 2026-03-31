@@ -1,12 +1,12 @@
 from torch import nn
+from transformers import ModernVBertModel, ModernVBertPreTrainedModel
 from transformers.conversion_mapping import get_checkpoint_conversion_mapping, register_checkpoint_conversion_mapping
 from transformers.core_model_loading import WeightRenaming
-
-from colpali_engine.models.modernvbert.modeling_modernvbert import ModernVBertModel, ModernVBertPreTrainedModel
 
 
 class ColModernVBert(ModernVBertPreTrainedModel):
     _checkpoint_conversion_mapping = {
+        r"^base_model\.model\.model\.text_model": "model.text_model",
         r"^base_model\.model\.custom_text_proj": "custom_text_proj",
     }
     """

@@ -1,2 +1,2 @@
-from .bivbert import BiModernVBert, BiModernVBertProcessor
-from .colvbert import ColModernVBert, ColModernVBertProcessor
+from .bimodernvbert import BiModernVBert, BiModernVBertProcessor
+from .colmodernvbert import ColModernVBert, ColModernVBertProcessor

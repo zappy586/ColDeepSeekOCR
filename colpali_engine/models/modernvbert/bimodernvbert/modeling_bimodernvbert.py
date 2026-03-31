@@ -1,8 +1,7 @@
 from typing import Literal
 
 import torch
-
-from colpali_engine.models.modernvbert.modeling_modernvbert import ModernVBertModel, ModernVBertPreTrainedModel
+from transformers import ModernVBertModel, ModernVBertPreTrainedModel
 
 
 class BiModernVBert(ModernVBertPreTrainedModel):
