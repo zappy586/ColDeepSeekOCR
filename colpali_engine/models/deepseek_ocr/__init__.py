@@ -1,0 +1,2 @@
+from .modeling_coldeepseekocr import ColDeepSeekOCR
+from .processing_coldeepseekocr import ColDeepSeekOCRProcessor

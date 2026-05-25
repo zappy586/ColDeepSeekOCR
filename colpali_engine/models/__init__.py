@@ -1,3 +1,4 @@
+from .deepseek_ocr import ColDeepSeekOCR, ColDeepSeekOCRProcessor
 from .gemma3 import BiGemma3, BiGemmaProcessor3, ColGemma3, ColGemmaProcessor3
 from .idefics3 import BiIdefics3, BiIdefics3Processor, ColIdefics3, ColIdefics3Processor
 from .modernvbert import BiModernVBert, BiModernVBertProcessor, ColModernVBert, ColModernVBertProcessor
