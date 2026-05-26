@@ -46,8 +46,8 @@ Each document image produces **~699 multi-vector embeddings** after the LLM pass
   <img src="assets/colpali_comparison.png" alt="ColPali vs Standard Retrieval" width="860"/>
 </p>
 
-Standard retrieval (left) chains OCR, layout detection, captioning, and chunking — ~7 s/page.
-ColPali-style retrieval (right) feeds raw page images into a VLM and scores queries against per-token embeddings with MaxSim — **0.39 s/page**, 0.81 NDCG@5 on ViDoRe.
+Standard retrieval (top) chains OCR, layout detection, captioning, and chunking — ~7 s/page.
+ColPali-style retrieval (bottom) feeds raw page images into a VLM and scores queries against per-token embeddings with MaxSim — **0.39 s/page**, 0.81 NDCG@5 on ViDoRe.
 
 **ColDeepSeekOCR** follows the same pattern:
 
