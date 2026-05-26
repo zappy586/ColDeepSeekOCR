@@ -1,460 +1,323 @@
-# ColPali: Efficient Document Retrieval with Vision Language Models 👀
+# ColDeepSeekOCR — OCR-Native Document Retrieval with ColBERT-style Late Interaction
 
-[![arXiv](https://img.shields.io/badge/arXiv-2407.01449-b31b1b.svg?style=for-the-badge)](https://arxiv.org/abs/2407.01449)
-[![GitHub](https://img.shields.io/badge/ViDoRe_Benchmark-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/illuin-tech/vidore-benchmark)
-[![Hugging Face](https://img.shields.io/badge/Vidore_Hf_Space-FFD21E?style=for-the-badge&logo=huggingface&logoColor=000)](https://huggingface.co/vidore)
-[![GitHub](https://img.shields.io/badge/Cookbooks-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/tonywu71/colpali-cookbooks)
-
-[![Test](https://github.com/illuin-tech/colpali/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/illuin-tech/colpali/actions/workflows/test.yml)
-[![Version](https://img.shields.io/pypi/v/colpali-engine?color=%2334D058&label=pypi%20package)](https://pypi.org/project/colpali-engine/)
-[![Downloads](https://static.pepy.tech/badge/colpali-engine)](https://pepy.tech/project/colpali-engine)
+> **A ColPali-engine extension** that adapts [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR)
+> into a multi-vector document embedding model for retrieval, following the
+> [ColBERT / ColPali](https://arxiv.org/abs/2407.01449) late-interaction paradigm.
 
 ---
 
-[[Model card]](https://huggingface.co/vidore/colpali)
-[[ViDoRe Leaderboard]](https://huggingface.co/spaces/vidore/vidore-leaderboard)
-[[Demo]](https://huggingface.co/spaces/manu/ColPali-demo)
-[[Blog Post]](https://huggingface.co/blog/manu/colpali)
+## What Is This?
 
-## Associated Paper
+Standard document retrieval pipelines require brittle OCR → layout detection → text chunking → embedding chains.
+**ColPali** (ICLR 2025) showed that a single Vision-Language Model can replace all of that — and beat it.
 
-This repository contains the code used for training and running visual document retrievers introduced by the [*ColPali: Efficient Document Retrieval with Vision Language Models*](https://arxiv.org/abs/2407.01449) paper. It includes the original ColPali model, based on the ColBERT architecture and the PaliGemma model, along with later ColVision and bi-encoder retriever variants.
+This repository takes that idea further by swapping in **DeepSeek-OCR** as the VLM backbone:
+a 3.3 B-parameter model purpose-built for document understanding with a dual-encoder vision stack (SAM local patches + CLIP global view) and a DeepSeek-V2 MoE language decoder.
 
-## Introduction
+We add a single linear projection head (`hidden_size → 128`) on top of the LLM's last hidden states, apply L2 normalisation, and train with the ColBERT MaxSim contrastive loss.  The result is **ColDeepSeekOCR**: per-token multi-vector embeddings that exploit DeepSeek-OCR's rich OCR priors for retrieval.
 
-With *ColPali*, we propose to leverage VLMs to construct efficient multi-vector embeddings in the visual space for document retrieval. By feeding the ViT output patches from PaliGemma-3B to a linear projection, we create a multi-vector representation of documents. We train the model to maximize the similarity between these document embeddings and the query embeddings, following the ColBERT method.
+> **🚧 Fine-tuned weights coming soon.** The code and training pipeline are complete.
+> Trained checkpoints will be released on Hugging Face Hub shortly.
 
-Using ColPali removes the need for potentially complex and brittle layout recognition and OCR pipelines with a single model that can take into account both the textual and visual content (layout, charts, ...) of a document.
+---
 
-![ColPali Architecture](assets/colpali_architecture.webp)
+## Architecture
 
-## List of ColVision models
+### DeepSeek-OCR Backbone
 
-| Model                                                               | Score on [ViDoRe](https://huggingface.co/spaces/vidore/vidore-leaderboard) 🏆 | License    | Comments                                                                                                                                                       | Currently supported |
-|---------------------------------------------------------------------|-------------------------------------------------------------------------------|------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
-| [vidore/colpali](https://huggingface.co/vidore/colpali)             | 81.3                                                                          | Gemma      | • Based on `google/paligemma-3b-mix-448`.<br />• Checkpoint used in the ColPali paper.                                                                         | ❌                   |
-| [vidore/colpali-v1.1](https://huggingface.co/vidore/colpali-v1.1)   | 81.5                                                                          | Gemma      | • Based on `google/paligemma-3b-mix-448`.<br />• Fix right padding for queries.                                                                                | ✅                   |
-| [vidore/colpali-v1.2](https://huggingface.co/vidore/colpali-v1.2)   | 83.9                                                                          | Gemma      | • Similar to `vidore/colpali-v1.1`.                                                                                                                            | ✅                   |
-| [vidore/colpali-v1.3](https://huggingface.co/vidore/colpali-v1.3)   | 84.8                                                                          | Gemma      | • Similar to `vidore/colpali-v1.2`.<br />• Trained with a larger effective batch size of 256 batch size for 3 epochs.                                          | ✅                   |
-| [vidore/colqwen2-v0.1](https://huggingface.co/vidore/colqwen2-v0.1) | 87.3                                                                          | Apache 2.0 | • Based on `Qwen/Qwen2-VL-2B-Instruct`.<br />• Supports dynamic resolution.<br />• Trained using 768 image patches per page and an effective batch size of 32. | ✅                   |
-| [vidore/colqwen2-v1.0](https://huggingface.co/vidore/colqwen2-v1.0) | 89.3                                                                          | Apache 2.0 | • Similar to `vidore/colqwen2-v0.1`, but trained with more powerful GPUs and with a larger effective batch size (256).                                         | ✅                   |
-| [vidore/colqwen2.5-v0.1](https://huggingface.co/vidore/colqwen2.5-v0.1) | 88.8                                                                          | Apache 2.0 | • Based on `Qwen/Qwen2.5-VL-3B-Instruct`<br />• Supports dynamic resolution.<br />• Trained using 768 image patches per page and an effective batch size of 32.                                         | ✅                   |
-| [vidore/colqwen2.5-v0.2](https://huggingface.co/vidore/colqwen2.5-v0.2) | 89.4                                                                          | Apache 2.0 | • Similar to `vidore/colqwen2.5-v0.1`, but trained with slightly different hyper parameters                                        | ✅                   |
-| [TomoroAI/tomoro-colqwen3-embed-4b](https://huggingface.co/TomoroAI/tomoro-colqwen3-embed-4b) | 90.6                                                                           | Apache 2.0 | • Based on the Qwen3-VL backbone.<br />• 320-dim ColBERT-style embeddings with dynamic resolution.<br />• Trained for multi-vector document retrieval.          | ✅                   |
-| [athrael-soju/colqwen3.5-4.5B-v3](https://huggingface.co/athrael-soju/colqwen3.5-4.5B-v3) | 90.9                                                                           | Apache 2.0 | • Based on `Qwen/Qwen3.5-4B` (hybrid GatedDeltaNet + full-attention).<br />• 320-dim ColBERT-style embeddings.<br />• 4.5B params, LoRA-trained.          | ✅                   |
-| [vidore/colSmol-256M](https://huggingface.co/vidore/colSmol-256M)   | 80.1                                                                          | Apache 2.0 | • Based on `HuggingFaceTB/SmolVLM-256M-Instruct`.                                                                                                              | ✅                   |
-| [vidore/colSmol-500M](https://huggingface.co/vidore/colSmol-500M)   | 82.3                                                                          | Apache 2.0 | • Based on `HuggingFaceTB/SmolVLM-500M-Instruct`.                                                                                                              | ✅                   |
-| [Cognitive-Lab/ColNetraEmbed](https://huggingface.co/Cognitive-Lab/ColNetraEmbed) | 86.4                                                                          | Gemma      | • Based on `google/gemma-3-4b-it`.<br />• Multi-vector late interaction retrieval model.<br />• Multilingual support across 22 languages.      | ✅                   |
-| [Cognitive-Lab/NetraEmbed](https://huggingface.co/Cognitive-Lab/NetraEmbed)       | 81.0                                                                          | Gemma      | • Based on `google/gemma-3-4b-it`.<br />• Bi-encoder retrieval model.<br />• Supports Matryoshka embeddings (768, 1536, 2560).<br />• Multilingual support across 22 languages. | ✅                   |
+<p align="center">
+  <img src="assets/deepseekocr_architecture.png" alt="DeepSeek-OCR Architecture" width="860"/>
+</p>
+
+| Component | Details |
+|-----------|---------|
+| **Local encoder** | SAM ViT-Det 80 M — extracts fine-grained patch features via local attention |
+| **Conv downsampler** | 16× stride convolution — reduces spatial tokens before injection |
+| **Global encoder** | CLIP ViT-L 300 M — provides layout-aware global context via full attention |
+| **Fusion** | Local tokens ⊕ global embedding → unified vision tokens |
+| **Language decoder** | DeepSeek-V2 3 B (MoE-A570 M) — 12-layer decoder, use_mla=False |
+| **Prompt** | `<image>\nDescribe the image.` (visual prompt, doc side) |
+
+Each document image produces **~699 multi-vector embeddings** after the LLM pass — reflecting the full token sequence (global patches + local tiles + prompt tokens).
+
+### ColPali Late Interaction
+
+<p align="center">
+  <img src="assets/colpali_comparison.png" alt="ColPali vs Standard Retrieval" width="860"/>
+</p>
+
+Standard retrieval (left) chains OCR, layout detection, captioning, and chunking — ~7 s/page.
+ColPali-style retrieval (right) feeds raw page images into a VLM and scores queries against per-token embeddings with MaxSim — **0.39 s/page**, 0.81 NDCG@5 on ViDoRe.
+
+**ColDeepSeekOCR** follows the same pattern:
+
+```
+Image  ──► SAM local encoder
+        ├─► CLIP global encoder   }  DeepEncoder
+        └─► DeepSeek-V2 decoder   ──► last_hidden_state  (batch, seq, 1280)
+                                        │
+                                   nn.Linear(1280, 128)
+                                        │
+                                     L2 norm
+                                        │
+                                   per-token embeddings  (batch, seq, 128)
+
+Query  ──► tokenizer ──► DeepSeek-V2 decoder  ──► same projection ──► query embeddings
+
+Score  ──► MaxSim(query_embs, doc_embs)  ──► retrieval score
+```
+
+---
 
 ## Setup
 
-The codebase is compatible with Python >=3.10,<3.15 and recent PyTorch versions. To install the package, run:
+### Requirements
 
 ```bash
-pip install colpali-engine # from PyPI
-pip install git+https://github.com/illuin-tech/colpali # from source
+# Python ≥ 3.10, CUDA 11.8+
+git clone <this-repo> && cd colpali
+pip install -e ".[train]"
+
+# Required for QLoRA fine-tuning
+pip install bitsandbytes peft
 ```
 
-Mac users using MPS with the ColQwen models have reported errors with torch 2.6.0. These errors are fixed by downgrading to torch 2.5.1.
+The model's remote code (from `deepseek-ai/DeepSeek-OCR`) is **auto-patched on first import** to work with modern `transformers` versions — no manual edits required.
 
-> [!WARNING]
-> For ColPali versions above v1.0, make sure to install the `colpali-engine` package from source or with a version above v0.2.0.
+### Virtual Environment (Recommended)
 
-## Development docs
+```bash
+python -m venv coldeepseek
+source coldeepseek/bin/activate
+pip install -e ".[train]"
+pip install bitsandbytes peft
+```
 
-- [Adding a new model family](docs/add_model_family.md)
+---
 
-## Usage
+## Quick Start
 
-### Quick start
+### Embed document images
 
 ```python
 import torch
 from PIL import Image
-from transformers.utils.import_utils import is_flash_attn_2_available
+from transformers import AutoTokenizer
+from colpali_engine.models.deepseek_ocr import ColDeepSeekOCR, ColDeepSeekOCRProcessor
 
-from colpali_engine.models import ColQwen2, ColQwen2Processor
+# Load tokenizer (needs trust_remote_code=True to fetch DeepSeek-OCR's tokenizer)
+tokenizer = AutoTokenizer.from_pretrained(
+    "deepseek-ai/DeepSeek-OCR",
+    trust_remote_code=True,
+)
 
-model_name = "vidore/colqwen2-v1.0"
-
-model = ColQwen2.from_pretrained(
-    model_name,
+# Load model
+model = ColDeepSeekOCR.from_pretrained(
+    "deepseek-ai/DeepSeek-OCR",
     torch_dtype=torch.bfloat16,
-    device_map="cuda:0",  # or "mps" if on Apple Silicon
-    attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
+    device_map="cuda:0",
+    trust_remote_code=True,
 ).eval()
 
-processor = ColQwen2Processor.from_pretrained(model_name)
+processor = ColDeepSeekOCRProcessor(tokenizer=tokenizer)
 
-# Your inputs
-images = [
-    Image.new("RGB", (128, 128), color="white"),
-    Image.new("RGB", (64, 32), color="black"),
-]
+# Document images
+images = [Image.open("page1.png"), Image.open("page2.png")]
 queries = [
-    "What is the organizational structure for our R&D department?",
-    "Can you provide a breakdown of last year’s financial performance?",
+    "What is the revenue breakdown by region?",
+    "Summarise the key findings in section 3.",
 ]
 
-# Process the inputs
-batch_images = processor.process_images(images).to(model.device)
-batch_queries = processor.process_queries(queries).to(model.device)
+# Embed documents
+doc_inputs  = processor.process_images(images)
+doc_inputs  = {k: v.to(model.device) if hasattr(v, "to") else v for k, v in doc_inputs.items()}
 
-# Forward pass
+# Embed queries
+query_inputs = processor.process_texts(queries)
+query_inputs = {k: v.to(model.device) for k, v in query_inputs.items()}
+
 with torch.no_grad():
-    image_embeddings = model(**batch_images)
-    query_embeddings = model(**batch_queries)
+    doc_embeddings   = model(**doc_inputs)    # (2, ~699, 128)
+    query_embeddings = model(**query_inputs)  # (2, seq, 128)
 
-scores = processor.score_multi_vector(query_embeddings, image_embeddings)
+# MaxSim scores
+scores = processor.score(query_embeddings, doc_embeddings)
+print(scores)  # (2, 2) relevance matrix
 ```
 
-We now support `fast-plaid` experimentally to make matching quicker for larger corpus sizes:
+### 4-bit inference (low VRAM)
 
 ```python
-# !pip install --no-deps fast-plaid fastkmeans
+from transformers import BitsAndBytesConfig
 
-# Process the inputs by batches of 4
-dataloader = DataLoader(
-    dataset=images,
-    batch_size=4,
-    shuffle=False,
-    collate_fn=lambda x: processor.process_images(x),
+bnb_cfg = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_compute_dtype=torch.bfloat16,
 )
 
-ds  = []
-for batch_doc in tqdm(dataloader):
-    with torch.no_grad():
-        batch_doc = {k: v.to(model.device) for k, v in batch_doc.items()}
-        embeddings_doc = model(**batch_doc)
-    ds.extend(list(torch.unbind(embeddings_doc.to("cpu"))))
-
-plaid_index = processor.create_plaid_index(ds)
-
-scores = processor.get_topk_plaid(query_embeddings, plaid_index, k=10)
-```
-
-### Benchmarking
-
-To benchmark ColPali on the [ViDoRe leaderboard](https://huggingface.co/spaces/vidore/vidore-leaderboard), use the [`vidore-benchmark`](https://github.com/illuin-tech/vidore-benchmark) package.
-
-### Interpretability with similarity maps
-
-By superimposing the late interaction similarity maps on top of the original image, we can visualize the most salient image patches with respect to each term of the query, yielding interpretable insights into model focus zones.
-
-To use the `interpretability` module, you need to install the `colpali-engine[interpretability]` package:
-
-```bash
-pip install colpali-engine[interpretability]
-```
-
-Then, after generating your embeddings with ColPali, use the following code to plot the similarity maps for each query token:
-
-<details>
-<summary><strong>🔽 Click to expand code snippet</strong></summary>
-
-```python
-import torch
-from PIL import Image
-
-from colpali_engine.interpretability import (
-    get_similarity_maps_from_embeddings,
-    plot_all_similarity_maps,
-)
-from colpali_engine.models import ColPali, ColPaliProcessor
-from colpali_engine.utils.torch_utils import get_torch_device
-
-model_name = "vidore/colpali-v1.3"
-device = get_torch_device("auto")
-
-# Load the model
-model = ColPali.from_pretrained(
-    model_name,
-    torch_dtype=torch.bfloat16,
-    device_map=device,
+model = ColDeepSeekOCR.from_pretrained(
+    "deepseek-ai/DeepSeek-OCR",
+    quantization_config=bnb_cfg,
+    device_map="auto",
+    trust_remote_code=True,
 ).eval()
-
-# Load the processor
-processor = ColPaliProcessor.from_pretrained(model_name)
-
-# Load the image and query
-image = Image.open("shift_kazakhstan.jpg")
-query = "Quelle partie de la production pétrolière du Kazakhstan provient de champs en mer ?"
-
-# Preprocess inputs
-batch_images = processor.process_images([image]).to(device)
-batch_queries = processor.process_queries([query]).to(device)
-
-# Forward passes
-with torch.no_grad():
-    image_embeddings = model.forward(**batch_images)
-    query_embeddings = model.forward(**batch_queries)
-
-# Get the number of image patches
-n_patches = processor.get_n_patches(image_size=image.size, patch_size=model.patch_size)
-
-# Get the tensor mask to filter out the embeddings that are not related to the image
-image_mask = processor.get_image_mask(batch_images)
-
-# Generate the similarity maps
-batched_similarity_maps = get_similarity_maps_from_embeddings(
-    image_embeddings=image_embeddings,
-    query_embeddings=query_embeddings,
-    n_patches=n_patches,
-    image_mask=image_mask,
-)
-
-# Get the similarity map for our (only) input image
-similarity_maps = batched_similarity_maps[0]  # (query_length, n_patches_x, n_patches_y)
-
-# Tokenize the query
-query_tokens = processor.tokenizer.tokenize(query)
-
-# Plot and save the similarity maps for each query token
-plots = plot_all_similarity_maps(
-    image=image,
-    query_tokens=query_tokens,
-    similarity_maps=similarity_maps,
-)
-for idx, (fig, ax) in enumerate(plots):
-    fig.savefig(f"similarity_map_{idx}.png")
 ```
 
-</details>
+---
 
-For a more detailed example, you can refer to the interpretability notebooks from the [ColPali Cookbooks 👨🏻‍🍳](https://github.com/tonywu71/colpali-cookbooks) repository.
+## Fine-tuning
 
-### Token pooling
+A ready-to-use training script lives at `scripts/train/train_coldeepseekocr.py`.
+It streams the [`vidore/colpali_train_set`](https://huggingface.co/datasets/vidore/colpali_train_set) dataset,
+caches a subset to disk, and trains with the ColBERT contrastive loss.
+Weights & Biases logging is supported via the `WANDB_API_KEY` environment variable.
 
-[Token pooling](https://doi.org/10.48550/arXiv.2409.14683) is a CRUDE-compliant method (document addition/deletion-friendly) that aims at reducing the sequence length of multi-vector embeddings. For ColPali, many image patches share redundant information, e.g. white background patches. By pooling these patches together, we can reduce the amount of embeddings while retaining most of the page's signal. Retrieval performance with hierarchical mean token pooling on image embeddings can be found in the [ColPali paper](https://doi.org/10.48550/arXiv.2407.01449). In our experiments, we found that a pool factor of 3 offered the optimal trade-off: the total number of vectors is reduced by $66.7\%$ while $97.8\%$ of the original performance is maintained.
+### Training modes
 
-To use token pooling, you can use the `HierarchicalTokenPooler` class from the `colpali-engine` package:
+| Mode | Command flag | Trainable params | Notes |
+|------|-------------|-----------------|-------|
+| **LoRA** (default) | *(none)* | ~5 M | Adapters on all LLM attention/MLP layers + projection head |
+| **QLoRA** | `--load-in-4bit` | ~5 M | Same as LoRA, backbone loaded in NF4 4-bit (~7 GB VRAM) |
+| **Head-only** | `--head-only` | 163 968 | Freeze backbone, train only the 1280→128 projection; fast but slow to converge |
+| **Full fine-tune** | `--no-lora` | 3.3 B | No LoRA, full fp16/bf16 training |
 
-<details>
-<summary><strong>🔽 Click to expand code snippet</strong></summary>
-
-```python
-import torch
-
-from colpali_engine.compression.token_pooling import HierarchicalTokenPooler
-
-# Dummy multivector embeddings
-list_embeddings = [
-    torch.rand(10, 768),
-    torch.rand(20, 768),
-]
-
-# Define the pooler with the desired level of compression
-pooler = HierarchicalTokenPooler()
-
-# Pool the embeddings
-outputs = pooler.pool_embeddings(list_embeddings, pool_factor=2)
-```
-
-If your inputs are padded 3D tensor embeddings instead of lists of 2D tensors, use `padding=True` and specify the padding used by your tokenizer to make sure the `HierarchicalTokenPooler` correctly removes the padding values before pooling:
-
-```python
-import torch
-from PIL import Image
-from transformers.utils.import_utils import is_flash_attn_2_available
-
-from colpali_engine.compression.token_pooling import HierarchicalTokenPooler
-from colpali_engine.models import ColQwen2, ColQwen2Processor
-
-model_name = "vidore/colqwen2-v1.0"
-model = ColQwen2.from_pretrained(
-    model_name,
-    torch_dtype=torch.bfloat16,
-    device_map="cuda:0",  # or "mps" if on Apple Silicon
-    attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
-).eval()
-processor = ColQwen2Processor.from_pretrained(model_name)
-
-token_pooler = HierarchicalTokenPooler()
-
-# Your page images
-images = [
-    Image.new("RGB", (128, 128), color="white"),
-    Image.new("RGB", (32, 32), color="black"),
-]
-
-# Process the inputs
-batch_images = processor.process_images(images).to(model.device)
-
-# Forward pass
-with torch.no_grad():
-    image_embeddings = model(**batch_images)
-
-# Apply token pooling (reduces the sequence length of the multi-vector embeddings)
-image_embeddings = token_pooler.pool_embeddings(
-    image_embeddings,
-    pool_factor=2,
-    padding=True,
-    padding_side=processor.tokenizer.padding_side,
-)
-```
-
-</details>
-
-### Training
-
-To keep a lightweight repository, only the essential packages were installed. In particular, you must specify the dependencies to use the training script for ColPali. You can do this using the following command:
+### Example: QLoRA run on 9 500 samples
 
 ```bash
-pip install "colpali-engine[train]"
+export WANDB_API_KEY="your_key_here"
+
+CUDA_VISIBLE_DEVICES=0 python scripts/train/train_coldeepseekocr.py \
+    --epochs 2 \
+    --max-train 9500 --max-eval 250 --max-test 250 \
+    --batch-size 8 --grad-accum 4 \
+    --lr 2e-4 \
+    --load-in-4bit \
+    --lora-r 32 --lora-alpha 64 --lora-dropout 0.05 \
+    --warmup-steps 50 \
+    --logging-steps 20 --eval-steps 100 --accuracy-eval-steps 500 \
+    --output-dir ./models/coldeepseekocr_qlora
 ```
 
-All the model configs used can be found in `scripts/configs/` and rely on the [configue](https://github.com/illuin-tech/configue) package for straightforward configuration. They should be used with the `train_colbert.py` script.
-
-<details>
-<summary><strong>🔽 Example 1: Local training</strong></summary>
-
+### Example: Head-only (projection only, lower LR)
 
 ```bash
-accelerate launch --multi-gpu scripts/configs/qwen2/train_colqwen25_model.py
+CUDA_VISIBLE_DEVICES=0 python scripts/train/train_coldeepseekocr.py \
+    --head-only \
+    --lr 5e-5 --warmup-steps 100 \
+    --epochs 3 \
+    --batch-size 32 \
+    --output-dir ./models/coldeepseekocr_head
 ```
 
-</details>
+> **Note on head-only convergence**: the random-init projection starts at loss = log(batch_size).
+> With a frozen backbone not trained for retrieval, convergence is slow.
+> LoRA or QLoRA mode is strongly recommended for meaningful retrieval quality.
 
-<details>
-<summary><strong>🔽 Example 2: Training on a SLURM cluster</strong></summary>
+### Key CLI arguments
 
-```bash
-sbatch --nodes=1 --cpus-per-task=16 --mem-per-cpu=32GB --time=20:00:00 --gres=gpu:1  -p gpua100 --job-name=colidefics --output=colidefics.out --error=colidefics.err --wrap="accelerate launch scripts/train/train_colbert.py scripts/configs/pali/train_colpali_docmatix_hardneg_model.yaml"
-
-sbatch --nodes=1  --time=5:00:00 -A cad15443 --gres=gpu:8  --constraint=MI250 --job-name=colpali --wrap="accelerate launch --multi-gpu scripts/configs/qwen2/train_colqwen25_model.py"
+```
+--epochs N             Training epochs (default: 2)
+--batch-size N         Per-device batch size (default: 8)
+--grad-accum N         Gradient accumulation steps (default: 4)
+--lr FLOAT             Learning rate (default: 2e-4)
+--warmup-steps N       Linear warmup steps (default: 50)
+--max-train N          Training samples to use (default: 9500)
+--max-eval N           Validation samples (default: 250)
+--max-test N           Test samples (default: 250)
+--head-only            Freeze backbone, train projection only
+--no-lora              Disable LoRA (full fine-tune)
+--load-in-4bit         QLoRA: load backbone in 4-bit NF4
+--lora-r N             LoRA rank (default: 32)
+--lora-alpha N         LoRA alpha (default: 64)
+--lora-dropout FLOAT   LoRA dropout (default: 0.05)
+--logging-steps N      Log train loss every N steps
+--eval-steps N         Run validation loss every N steps
+--accuracy-eval-steps N  Run Recall@1 accuracy every N steps
+--output-dir PATH      Checkpoint output directory
 ```
 
-</details>
+---
 
-## Contributing
+## How It Works
 
-We welcome contributions to ColPali! 🤗
+### Image processing pipeline
 
-To contribute to ColPali, first install the development dependencies for proper testing/linting:
+Each document page goes through a **dual-branch preprocessing** pipeline before entering the model:
 
-```bash
-pip install "colpali-engine[dev]"
+1. **Global view** — the full image is padded to `1024×1024` → CLIP ViT-L processes it with global attention → produces layout-aware embeddings
+2. **Local tiles** — if the image is larger than `640×640`, it is split into up to 9 crops at `640×640` each (dynamic aspect-ratio tiling) → SAM ViT-Det processes each tile with local attention → fine-grained OCR features
+3. **Token sequence** — image tokens are interleaved in `input_ids` at positions `id=128815`, followed by the prompt suffix `\nDescribe the image.`
+4. **LLM pass** — all tokens (image + text) flow through the 12-layer DeepSeek-V2 decoder
+5. **Projection** — `last_hidden_state` → `nn.Linear(1280, 128)` → L2 norm → per-token embeddings
+
+### Query processing
+
+Queries are tokenized as `BOS + "Query: " + <query text>`, with no image inputs.
+The model auto-injects zero-sum dummy image tensors so the image branch is silently skipped,
+and only the LLM decoder runs. The same projection head maps query tokens to 128-dim space.
+
+### Retrieval scoring
+
+```
+score(q, d) = MaxSim(q, d) = Σ_i  max_j  q_i · d_j
 ```
 
-To run all the tests, you will have to install all optional dependencies (or you'll get an error in test discovery):
+Each query token attends to its most similar document token — capturing fine-grained
+token-level alignment across the full page.
 
-```bash
-pip install "colpali-engine[all]"
+---
+
+## Repository Structure
+
+```
+colpali/
+├── colpali_engine/
+│   ├── models/
+│   │   └── deepseek_ocr/
+│   │       ├── __init__.py
+│   │       ├── modeling_coldeepseekocr.py      # ColDeepSeekOCR model
+│   │       ├── processing_coldeepseekocr.py    # Processor (tokenize / image preprocess)
+│   │       └── _patched_modeling_deepseekv2.py # Compatibility patch for modern transformers
+│   ├── trainer/
+│   │   └── contrastive_trainer.py              # ColBERT contrastive training loop
+│   └── loss/
+│       └── colbert_loss.py                     # MaxSim loss
+├── scripts/
+│   └── train/
+│       └── train_coldeepseekocr.py             # Fine-tuning entry point
+└── assets/
+    ├── deepseekocr_architecture.png            # DeepSeek-OCR architecture diagram
+    └── colpali_comparison.png                  # ColPali vs standard retrieval comparison
 ```
 
-When your PR is ready, ping one of the repository maintainers. We will do our best to review it as soon as possible!
+---
 
-## Community Projects
+## Technical Notes
 
-Several community projects and resources have been developed around ColPali to facilitate its usage. Feel free to reach out if you want to add your project to this list!
+### Compatibility patching
 
-<details>
-<summary><strong>🔽 Libraries 📚</strong></summary>
+`deepseek-ai/DeepSeek-OCR` ships remote code that imports removed transformers symbols
+(`LlamaAttention`, `LlamaFlashAttention2`, `is_flash_attn_2_available`, `is_torch_fx_available`).
+On first import, `modeling_coldeepseekocr.py` auto-patches the cached hub files:
 
-| Library Name  | Description                                                                                                                                                                                                                                          |
-|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  |
-| Byaldi        | [`Byaldi`](https://github.com/AnswerDotAI/byaldi) is [RAGatouille](https://github.com/AnswerDotAI/RAGatouille)'s equivalent for ColPali, leveraging the `colpali-engine` package to facilitate indexing and storing embeddings.                      |
-| PyVespa       | [`PyVespa`](https://pyvespa.readthedocs.io/en/latest/examples/colpali-document-retrieval-vision-language-models-cloud.html) allows interaction with [Vespa](https://vespa.ai/), a production-grade vector database, with detailed ColPali support.   |
-| Qdrant | Tutorial about using ColQwen2 with the [Qdrant](https://qdrant.tech/documentation/advanced-tutorials/pdf-retrieval-at-scale/) vector database. |
-| Elastic Search     | Tutorial about using ColPali with the [Elastic Search](https://www.elastic.co/search-labs/blog/elastiacsearch-colpali-document-search) vector database. |
-| Weaviate | Tutorial about using multi-vector embeddings with the [Weaviate](https://weaviate.io/developers/weaviate/tutorials/multi-vector-embeddings) vector database. |
-| Candle        | [Candle](https://github.com/huggingface/candle/tree/main/candle-examples/examples/colpali) enables ColPali inference with an efficient ML framework for Rust.                                                                                        |
-| EmbedAnything | [`EmbedAnything`](https://github.com/StarlightSearch/EmbedAnything) Allows end-to-end ColPali inference with both Candle and ONNX backend.                                                                                                           |
-| DocAI         | [DocAI](https://github.com/PragmaticMachineLearning/docai) uses ColPali with GPT-4o and Langchain to extract structured information from documents.                                                                                                  |
-| VARAG         | [VARAG](https://github.com/adithya-s-k/VARAG) uses ColPali in a vision-only and a hybrid RAG pipeline.                                                                                                                                               |
-| ColBERT Live! | [`ColBERT Live!`](https://github.com/jbellis/colbert-live/) enables ColPali usage with vector databases supporting large datasets, compression, and non-vector predicates.                                                                           |
-| ColiVara      | [`ColiVara`](https://github.com/tjmlabs/ColiVara/) is retrieval API that allows you to store, search, and retrieve documents based on their visual embedding. It is a web-first implementation of the ColPali paper using ColQwen2 as the LLM model. |
-| BentoML       | Deploy ColPali easily with BentoML using [this example repository](https://github.com/bentoml/BentoColPali). BentoML features adaptive batching and zero-copy I/O to minimize overhead.                                                              |
-| NoOCR       | NoOCR is end-to-end, [open source](https://github.com/kyryl-opens-ml/no-ocr) solution for complex PDFs, powered by ColPali embeddings. |
-| Astra Multi-vector     | [`Astra-multivector`](https://github.com/brian-ogrady/astradb-multivector) provides enterprise-grade integration with AstraDB for late-interaction models like ColPali, ColQwen2, and ColBERT. It implements efficient token pooling and embedding caching strategies to dramatically reduce latency and index size while maintaining retrieval quality. The library leverages Cassandra's distributed architecture for high-throughput vector search at scale. |
-| Mixpeek       | [Mixpeek](https://docs.mixpeek.com/processing/feature-extractors) is a production platform for multimodal late-interaction retrieval. It supports models like ColBERT, ColPaLI, and ColQwen2 with built-in indexing, versioning, A/B testing, and explainability across image, text, video, and PDF pipelines. |
+- Replaces the broken attention imports with a self-contained `DeepseekMHAAttention` class
+- Silences per-forward debug `print()` calls that spam training logs
+
+This is idempotent and requires no manual intervention.
+
+### Non-persistent buffer fix
+
+DeepseekV2's rotary embedding buffers (`inv_freq`, `cos_cached`, `sin_cached`) and
+CLIP's `position_ids` are registered as non-persistent buffers — they are not saved in
+the checkpoint and must be re-derived after loading. `from_pretrained` handles this automatically.
+
+### QLoRA + custom_text_proj
+
+When loading in 4-bit mode, `bitsandbytes` wraps every `nn.Linear` — including the
+randomly-initialised `custom_text_proj` which has no quantised weights in the checkpoint.
+`from_pretrained` detects this and replaces the broken `Linear4bit` shell with a fresh
+`nn.Linear` in bf16.
 
 
-</details>
-
-<details>
-<summary><strong>🔽 Notebooks 📙</strong></summary>
-
-| Notebook Title                                               | Author & Link                                                |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ColPali Cookbooks                                            | [Tony's Cookbooks (ILLUIN)](https://github.com/tonywu71/colpali-cookbooks) 🙋🏻 |
-| Vision RAG Tutorial                                          | [Manu's Vision Rag Tutorial (ILLUIN)](https://github.com/ManuelFay/Tutorials/blob/main/Tuesday_Practical_2_Vision_RAG.ipynb) 🙋🏻 |
-| ColPali (Byaldi) + Qwen2-VL for RAG                          | [Merve's Notebook (HuggingFace 🤗)](https://github.com/merveenoyan/smol-vision/blob/main/ColPali_%2B_Qwen2_VL.ipynb) |
-| Indexing ColPali with Qdrant                                 | [Daniel's Notebook (HuggingFace 🤗)](https://danielvanstrien.xyz/posts/post-with-code/colpali-qdrant/2024-10-02_using_colpali_with_qdrant.html) |
-| Weaviate Tutorial                                            | [Connor's ColPali POC (Weaviate)](https://github.com/weaviate/recipes/blob/main/weaviate-features/named-vectors/NamedVectors-ColPali-POC.ipynb) |
-| Use ColPali for Multi-Modal Retrieval with Milvus            | [Milvus Documentation](https://milvus.io/docs/use_ColPali_with_milvus.md) |
-| Data Generation                                              | [Daniel's Notebook (HuggingFace 🤗)](https://danielvanstrien.xyz/posts/post-with-code/colpali/2024-09-23-generate_colpali_dataset.html) |
-| Finance Report Analysis with ColPali and Gemini              | [Jaykumaran (LearnOpenCV)](https://github.com/spmallick/learnopencv/tree/master/Multimodal-RAG-with-ColPali-Gemini) |
-| Multimodal Retrieval-Augmented Generation (RAG) with Document Retrieval (ColPali) and Vision Language Models (VLMs) | [Sergio Paniego](https://huggingface.co/learn/cookbook/multimodal_rag_using_document_retrieval_and_vlms) |
-| Document Similarity Search with ColPali                      | [Frank Sommers](https://colab.research.google.com/github/fsommers/documentai/blob/main/Document_Similarity_with_ColPali_0_2_2_version.ipynb) |
-| End-to-end ColPali inference with EmbedAnything              | [Akshay Ballal (EmbedAnything)](https://colab.research.google.com/drive/1-Eiaw8wMm8I1n69N1uKOHkmpw3yV22w8?usp=sharing) |
-| ColiVara: A ColPali Retrieval API                            | [A simple RAG Example](https://github.com/tjmlabs/ColiVara-docs/blob/main/cookbook/RAG.ipynb) |
-| Multimodal RAG with Document Retrieval (ColPali), Vision Language Model (ColQwen2) and Amazon Nova | [Suman's Notebook (AWS)](https://github.com/debnsuma/fcc-ai-engineering-aws/blob/main/05-multimodal-rag-with-colpali/01-multimodal-retrival-with-colpali-retreve-gen.ipynb) |
-| Multi-vector RAG: Using Weaviate to search a collection of PDF documents | [Weaviate's Notebook](https://github.com/weaviate/recipes/blob/main/weaviate-features/multi-vector/multi-vector-colipali-rag.ipynb) |
-
-</details>
-
-<details>
-<summary><strong>🔽 Other resources</strong></summary>
-
-- 📝 = blog post
-- 📋 = PDF / slides
-- 📹 = video
-
-| Title                                                                                    | Author & Link                                                                                                                                                 |
-|------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| State of AI report 2024                                                                  | [Nathan's report](https://www.stateof.ai/) 📋                                                                                                                 |
-| Technology Radar Volume 31 (October 2024)                                                | [thoughtworks's report](https://www.thoughtworks.com/radar) 📋                                                                                                |
-| LlamaIndex Webinar: ColPali - Efficient Document Retrieval with Vision Language Models   | [LlamaIndex's Youtube video](https://youtu.be/nzcBvba7mzI?si=WL9MsyiAFJMyEolz) 📹                                                                             |
-| PDF Retrieval with Vision Language Models                                                | [Jo's blog post #1 (Vespa)](https://blog.vespa.ai/retrieval-with-vision-language-models-colpali/) 📝                                                          |
-| Scaling ColPali to billions of PDFs with Vespa                                           | [Jo's blog post #2 (Vespa)](https://blog.vespa.ai/scaling-colpali-to-billions/) 📝                                                                            |
-| Neural Search Talks: ColPali (with Manuel Faysse)                                        | [Zeta Alpha's Podcast](https://open.spotify.com/episode/2s6ljhd6VQTL2mIU9cFzCb) 📹                                                                            |
-| Multimodal Document RAG with Llama 3.2 Vision and ColQwen2                               | [Zain's blog post (Together AI)](https://www.together.ai/blog/multimodal-document-rag-with-llama-3-2-vision-and-colqwen2) 📝                                  |
-| ColPali: Document Retrieval with Vision Language Models                                  | [Antaripa Saha](https://antaripasaha.notion.site/ColPali-Efficient-Document-Retrieval-with-Vision-Language-Models-10f5314a5639803d94d0d7ac191bb5b1) 📝        |
-| Minimalist diagrams explaining ColPali                                                   | [Leonie's ColPali diagrams on X](https://twitter.com/helloiamleonie/status/1839321865195851859)📝                                                            |
-| Multimodal RAG with ColPali and Gemini : Financial Report Analysis Application           | [Jaykumaran's blog post (LearnOpenCV)](https://learnopencv.com/multimodal-rag-with-colpali/) 📝                                                               |
-| Implement Multimodal RAG with ColPali and Vision Language Model Groq(Llava) and Qwen2-VL | [Plaban's blog post](https://medium.com/the-ai-forum/implement-multimodal-rag-with-colpali-and-vision-language-model-groq-llava-and-qwen2-vl-5c113b8c08fd) 📝 |
-| multimodal AI. open-source. in a nutshell.                                               | [Merve's Youtube video](https://youtu.be/IoGaGfU1CIg?si=yEhxMqJYxvMzGyUm) 📹                                                                                  |
-| Remove Complexity from Your RAG Applications                                             | [Kyryl's blog post (KOML)](https://kyrylai.com/2024/09/09/remove-complexity-from-your-rag-applications/) 📝                                                   |
-| Late interaction & efficient Multi-modal retrievers need more than a vector index        | [Ayush Chaurasia (LanceDB)](https://blog.lancedb.com/late-interaction-efficient-multi-modal-retrievers-need-more-than-just-a-vector-index/) 📝                |
-| Optimizing Document Retrieval with ColPali and Qdrant's Binary Quantization              | [Sabrina Aquino (Qdrant)]( https://youtu.be/_A90A-grwIc?si=MS5RV17D6sgirCRm)  📹                                                                              |
-| Hands-On Multimodal Retrieval and Interpretability (ColQwen + Vespa)                     | [Antaripa Saha](https://www.analyticsvidhya.com/blog/2024/10/multimodal-retrieval-with-colqwen-vespa/) 📝                                                     |
-
-</details>
-
-## Paper result reproduction
-
-To reproduce the results from the paper, you should checkout to the `v0.1.1` tag or install the corresponding `colpali-engine` package release using:
-
-```bash
-pip install colpali-engine==0.1.1
-```
-
-## Citation
-
-**ColPali: Efficient Document Retrieval with Vision Language Models**  
-
-Authors: **Manuel Faysse**\*, **Hugues Sibille**\*, **Tony Wu**\*, Bilel Omrani, Gautier Viaud, Céline Hudelot, Pierre Colombo (\* denotes equal contribution)
-
-```latex
-@misc{faysse2024colpaliefficientdocumentretrieval,
-      title={ColPali: Efficient Document Retrieval with Vision Language Models}, 
-      author={Manuel Faysse and Hugues Sibille and Tony Wu and Bilel Omrani and Gautier Viaud and Céline Hudelot and Pierre Colombo},
-      year={2024},
-      eprint={2407.01449},
-      archivePrefix={arXiv},
-      primaryClass={cs.IR},
-      url={https://arxiv.org/abs/2407.01449}, 
-}
-
-@misc{macé2025vidorebenchmarkv2raising,
-      title={ViDoRe Benchmark V2: Raising the Bar for Visual Retrieval}, 
-      author={Quentin Macé and António Loison and Manuel Faysse},
-      year={2025},
-      eprint={2505.17166},
-      archivePrefix={arXiv},
-      primaryClass={cs.IR},
-      url={https://arxiv.org/abs/2505.17166}, 
-}
-```
