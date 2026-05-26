@@ -181,6 +181,12 @@ def main():
     )
     p.add_argument("--lora-dropout", type=float, default=0.1, help="LoRA dropout (default 0.1)")
     p.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=50,
+        help="Linear LR warmup steps (default 50; 0 disables warmup, dry-run forces 0).",
+    )
+    p.add_argument(
         "--head-only",
         action="store_true",
         help="Freeze the entire backbone and train only custom_text_proj. "
@@ -341,7 +347,7 @@ def main():
         per_device_eval_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr,
-        warmup_steps=50 if not args.dry_run else 0,
+        warmup_steps=0 if args.dry_run else args.warmup_steps,
         bf16=True,
         gradient_checkpointing=False,  # DeepseekOCRModel doesn't support it cleanly
         eval_strategy="steps",
